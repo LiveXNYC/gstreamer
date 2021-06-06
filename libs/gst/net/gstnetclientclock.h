@@ -95,7 +95,7 @@ GType           gst_ntp_clock_get_type	        (void);
 
 GST_NET_API
 GstClock*	gst_ntp_clock_new	        (const gchar *name, const gchar *remote_address,
-                                                 gint remote_port, GstClockTime base_time);
+                                                 gint remote_port, GstClockTime base_time, gboolean toUTC);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstNetClientClock, gst_object_unref)
 
