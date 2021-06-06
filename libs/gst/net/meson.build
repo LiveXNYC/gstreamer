@@ -32,7 +32,7 @@ gst_net = library('gstnet-@0@'.format(apiversion),
   soversion : soversion,
   darwin_versions : osxversion,
   install : true,
-  dependencies : [gio_dep, gst_base_dep],
+  dependencies : [gio_dep, gstbase_dep],
 )
 
 if build_gir
@@ -44,7 +44,7 @@ if build_gir
     identifier_prefix : 'Gst',
     symbol_prefix : 'gst',
     export_packages : 'gstreamer-net-1.0',
-    dependencies : [gst_base_dep],
+    dependencies : [gstbase_dep],
     include_directories : [configinc, libsinc],
     includes : ['GLib-2.0', 'GObject-2.0', 'GModule-2.0', 'Gio-2.0', 'Gst-1.0'],
     install : true,
@@ -56,4 +56,4 @@ endif
 gst_net_dep = declare_dependency(link_with : gst_net,
   include_directories : [libsinc],
   sources: gst_net_gen_sources,
-  dependencies : [gst_base_dep])
+  dependencies : [gstbase_dep])
