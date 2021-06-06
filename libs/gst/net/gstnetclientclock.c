@@ -367,6 +367,10 @@ gst_net_client_internal_clock_observe_times (GstNetClientInternalClock * self,
   GST_OBJECT_LOCK (self);
   rtt_limit = self->roundtrip_limit;
 
+  // Convert from 1900 NTP to 1970 UTC format
+  remote_1 -= 2208988800ULL * GST_SECOND;
+  remote_2 -= 2208988800ULL * GST_SECOND;
+
   GST_LOG_OBJECT (self,
       "local1 %" G_GUINT64_FORMAT " remote1 %" G_GUINT64_FORMAT " remote2 %"
       G_GUINT64_FORMAT " local2 %" G_GUINT64_FORMAT, local_1, remote_1,
