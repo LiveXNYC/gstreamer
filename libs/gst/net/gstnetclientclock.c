@@ -970,9 +970,6 @@ gst_net_client_internal_clock_stop (GstNetClientInternalClock * self)
   g_object_unref (self->servaddr);
   self->servaddr = NULL;
 
-  g_object_unref (self->socket);
-  self->socket = NULL;
-
   GST_INFO_OBJECT (self, "stopped");
 }
 
