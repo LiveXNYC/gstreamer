@@ -700,7 +700,9 @@ gst_net_client_internal_clock_thread (gpointer data)
               "sending packet, local time = %" GST_TIME_FORMAT,
               GST_TIME_ARGS (packet->transmit_time));
 
-          gst_ntp_packet_send (packet, self->socket, self->servaddr, NULL);
+          if (!gst_ntp_packet_send (packet, self->socket, self->servaddr, NULL)) {
+          GST_INFO_OBJECT (self, "sending packet failed");
+	  }
 
           g_free (packet);
         } else {
@@ -1156,21 +1158,29 @@ update_clock_cache (ClockCache * cache)
 }
 
 static gboolean
-remove_clock_cache (GstClock * clock, GstClockTime time, GstClockID id,
+remove_clock_cache(ClockCache* cache)
+{
+    if (!cache->clocks) {
+        gst_clock_id_unref(cache->remove_id);
+        gst_object_unref(cache->clock);
+        clocks = g_list_remove(clocks, cache);
+        g_free(cache);
+    }
+
+    return TRUE;
+}
+
+static gboolean
+remove_clock_cache_cb (GstClock * clock, GstClockTime time, GstClockID id,
     gpointer user_data)
 {
   ClockCache *cache = user_data;
 
-  G_LOCK (clocks_lock);
-  if (!cache->clocks) {
-    gst_clock_id_unref (cache->remove_id);
-    gst_object_unref (cache->clock);
-    clocks = g_list_remove (clocks, cache);
-    g_free (cache);
-  }
-  G_UNLOCK (clocks_lock);
-
-  return TRUE;
+  G_LOCK(clocks_lock);
+  gboolean result = remove_clock_cache(cache);
+  G_UNLOCK(clocks_lock);
+  
+  return result;
 }
 
 static void
@@ -1194,13 +1204,14 @@ gst_net_client_clock_finalize (GObject * object)
       if (cache->clocks) {
         update_clock_cache (cache);
       } else {
-        GstClock *sysclock = gst_system_clock_obtain ();
+        remove_clock_cache(cache);
+        /*GstClock *sysclock = gst_system_clock_obtain ();
         GstClockTime time = gst_clock_get_time (sysclock) + 60 * GST_SECOND;
 
         cache->remove_id = gst_clock_new_single_shot_id (sysclock, time);
-        gst_clock_id_wait_async (cache->remove_id, remove_clock_cache, cache,
+        gst_clock_id_wait_async (cache->remove_id, remove_clock_cache_cb, cache,
             NULL);
-        gst_object_unref (sysclock);
+        gst_object_unref (sysclock);*/
       }
       break;
     }
@@ -1369,7 +1380,7 @@ gst_net_client_clock_constructed (GObject * object)
   G_OBJECT_CLASS (gst_net_client_clock_parent_class)->constructed (object);
 
   G_LOCK (clocks_lock);
-  for (l = clocks; l; l = l->next) {
+  /*for (l = clocks; l; l = l->next) {
     ClockCache *tmp = l->data;
     GstNetClientInternalClock *internal_clock =
         GST_NET_CLIENT_INTERNAL_CLOCK (tmp->clock);
@@ -1384,7 +1395,7 @@ gst_net_client_clock_constructed (GObject * object)
       }
       break;
     }
-  }
+  }*/
 
   if (!cache) {
     cache = g_new0 (ClockCache, 1);
