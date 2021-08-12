@@ -9,6 +9,7 @@ version_arr = gst_version.split('.')
 gst_version_major = version_arr[0].to_int()
 gst_version_minor = version_arr[1].to_int()
 gst_version_micro = version_arr[2].to_int()
+gst_req = '>= @0@.@1@.0'.format(gst_version_major, gst_version_minor)
 if version_arr.length() == 4
   gst_version_nano = version_arr[3].to_int()
 else
@@ -380,6 +381,9 @@ if host_system == 'windows'
   endif
 endif
 
+gst_dep = dependency('gstreamer-1.0', version : gst_req,
+  fallback : ['gstreamer', 'gst_dep'])
+
 backtrace_deps = []
 unwind_dep = dependency('libunwind', required : get_option('libunwind'))
 dw_dep = dependency('libdw', required: get_option('libdw'))
@@ -565,16 +569,8 @@ if get_option('default_library') == 'shared'
   plugins_pkgconfig_install_dir = disabler()
 endif
 
-subdir('gst')
+#subdir('gst')
 subdir('libs')
-subdir('plugins')
-if not get_option('tools').disabled()
-  subdir('tools')
-endif
-subdir('pkgconfig')
-subdir('tests')
-subdir('data')
-subdir('docs')
 
 # xgettext is optional (on Windows for instance)
 if find_program('xgettext', required : get_option('nls')).found()
@@ -604,15 +600,4 @@ install_data('gst-element-check-1.0.m4', install_dir : join_paths(get_option('da
 
 if meson.version().version_compare('>= 0.54')
   plugin_names = []
-  foreach plugin: plugins
-    # FIXME: Use str.subtring() when we can depend on Meson 0.56
-    split = plugin.name().split('gst')
-    if split.length() == 2
-      plugin_names += [split[1]]
-    else
-      warning('Need substring API in meson >= 0.56 to properly parse plugin name: ' + plugin.name())
-      plugin_names += [plugin.name()]
-    endif
-  endforeach
-  summary({'Plugins':plugin_names}, list_sep: ', ')
 endif
