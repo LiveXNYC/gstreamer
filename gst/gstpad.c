@@ -1371,8 +1371,10 @@ cleanup_hook (GstPad * pad, GHook * hook)
   GST_DEBUG_OBJECT (pad,
       "cleaning up hook %lu with flags %08x", hook->hook_id, hook->flags);
 
-  if (!G_HOOK_IS_VALID (hook))
+  if (!G_HOOK_IS_VALID (hook)) {
+    /* We've already destroyed this hook */
     return;
+  }
 
   type = (hook->flags) >> G_HOOK_FLAG_USER_SHIFT;
 
@@ -1492,6 +1494,9 @@ gst_pad_add_probe (GstPad * pad, GstPadProbeType mask,
       gst_object_ref (pad);
       pad->priv->idle_running++;
 
+      /* Ref the hook, it could be destroyed by the callback or concurrently */
+      g_hook_ref (&pad->probes, hook);
+
       /* the pad is idle now, we can signal the idle callback now */
       GST_CAT_LOG_OBJECT (GST_CAT_SCHEDULING, pad,
           "pad is idle, trigger idle callback");
@@ -1523,6 +1528,7 @@ gst_pad_add_probe (GstPad * pad, GstPadProbeType mask,
           GST_DEBUG_OBJECT (pad, "probe returned %d", ret);
           break;
       }
+      g_hook_unref (&pad->probes, hook);
       pad->priv->idle_running--;
       if (pad->priv->idle_running == 0) {
         GST_PAD_BLOCK_BROADCAST (pad);
@@ -4417,6 +4423,8 @@ gst_pad_chain_data_unchecked (GstPad * pad, GstPadProbeType type, void *data)
         GST_DEBUG_FUNCPTR_NAME (chainlistfunc), gst_flow_get_name (ret));
   }
 
+  pad->ABI.abi.last_flowret = ret;
+
   RELEASE_PARENT (parent);
 
   GST_PAD_STREAM_UNLOCK (pad);
@@ -4428,6 +4436,7 @@ flushing:
   {
     GST_CAT_LOG_OBJECT (GST_CAT_SCHEDULING, pad,
         "chaining, but pad was flushing");
+    pad->ABI.abi.last_flowret = GST_FLOW_FLUSHING;
     GST_OBJECT_UNLOCK (pad);
     GST_PAD_STREAM_UNLOCK (pad);
     gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
@@ -4436,6 +4445,7 @@ flushing:
 eos:
   {
     GST_CAT_LOG_OBJECT (GST_CAT_SCHEDULING, pad, "chaining, but pad was EOS");
+    pad->ABI.abi.last_flowret = GST_FLOW_EOS;
     GST_OBJECT_UNLOCK (pad);
     GST_PAD_STREAM_UNLOCK (pad);
     gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
@@ -4445,6 +4455,7 @@ wrong_mode:
   {
     g_critical ("chain on pad %s:%s but it was not in push mode",
         GST_DEBUG_PAD_NAME (pad));
+    pad->ABI.abi.last_flowret = GST_FLOW_ERROR;
     GST_OBJECT_UNLOCK (pad);
     GST_PAD_STREAM_UNLOCK (pad);
     gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
@@ -4455,8 +4466,6 @@ probe_handled:
   /* PASSTHROUGH */
 probe_stopped:
   {
-    GST_OBJECT_UNLOCK (pad);
-    GST_PAD_STREAM_UNLOCK (pad);
     /* We unref the buffer, except if the probe handled it (CUSTOM_SUCCESS_1) */
     if (!handled)
       gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
@@ -4471,11 +4480,15 @@ probe_stopped:
         GST_DEBUG_OBJECT (pad, "an error occurred %s", gst_flow_get_name (ret));
         break;
     }
+    pad->ABI.abi.last_flowret = ret;
+    GST_OBJECT_UNLOCK (pad);
+    GST_PAD_STREAM_UNLOCK (pad);
     return ret;
   }
 no_parent:
   {
     GST_DEBUG_OBJECT (pad, "No parent when chaining %" GST_PTR_FORMAT, data);
+    pad->ABI.abi.last_flowret = GST_FLOW_FLUSHING;
     gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
     GST_OBJECT_UNLOCK (pad);
     GST_PAD_STREAM_UNLOCK (pad);
@@ -4483,6 +4496,7 @@ no_parent:
   }
 no_function:
   {
+    pad->ABI.abi.last_flowret = GST_FLOW_NOT_SUPPORTED;
     RELEASE_PARENT (parent);
     gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
     g_critical ("chain on pad %s:%s but it has no chainfunction",
@@ -4537,7 +4551,7 @@ gst_pad_chain_list_default (GstPad * pad, GstObject * parent,
   GstBuffer *buffer;
   GstFlowReturn ret;
 
-  GST_INFO_OBJECT (pad, "chaining each buffer in list individually");
+  GST_LOG_OBJECT (pad, "chaining each buffer in list individually");
 
   len = gst_buffer_list_length (list);
 
