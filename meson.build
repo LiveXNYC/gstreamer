@@ -526,7 +526,7 @@ if get_option('default_library') == 'static'
 endif
 
 # Used in gst/parse/meson.build and below
-python3 = import('python').find_installation()
+# python3 = import('python').find_installation()
 
 bashcomp_option = get_option('bash-completion')
 bashcomp_dep = dependency('bash-completion', version : '>= 2.0', required : bashcomp_option)
@@ -594,7 +594,7 @@ if gst_version_nano == 0
 endif
 
 configure_file(output : 'config.h', configuration : cdata)
-run_command(python3, '-c', 'import shutil; shutil.copy("hooks/pre-commit.hook", ".git/hooks/pre-commit")')
+# run_command(python3, '-c', 'import shutil; shutil.copy("hooks/pre-commit.hook", ".git/hooks/pre-commit")')
 install_data('gst-element-check-1.0.m4', install_dir : join_paths(get_option('datadir'), 'aclocal'))
 
 if meson.version().version_compare('>= 0.54')
