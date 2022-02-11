@@ -124,7 +124,8 @@ enum
   PROP_BASE_TIME,
   PROP_INTERNAL_CLOCK,
   PROP_IS_NTP,
-  PROP_QOS_DSCP
+  PROP_QOS_DSCP,
+  PROP_TO_UTC
 };
 
 struct _GstNetClientInternalClock
@@ -143,7 +144,6 @@ struct _GstNetClientInternalClock
   GstClockTime rtt_avg;
   GstClockTime minimum_update_interval;
   GstClockTime last_remote_poll_interval;
-  GstClockTime remote_avg_old;
   guint skipped_updates;
   GstClockTime last_rtts[MEDIAN_PRE_FILTERING_WINDOW];
   gint last_rtts_missing;
@@ -152,7 +152,7 @@ struct _GstNetClientInternalClock
   gint port;
   gboolean is_ntp;
   gint qos_dscp;
-
+  gboolean toUTC;
   /* Protected by OBJECT_LOCK */
   GList *busses;
 };
@@ -218,7 +218,7 @@ gst_net_client_internal_clock_init (GstNetClientInternalClock * self)
   self->address = g_strdup (DEFAULT_ADDRESS);
   self->is_ntp = FALSE;
   self->qos_dscp = DEFAULT_QOS_DSCP;
-
+  self->toUTC = FALSE;
   gst_clock_set_timeout (GST_CLOCK (self), DEFAULT_TIMEOUT);
 
   self->thread = NULL;
@@ -230,7 +230,6 @@ gst_net_client_internal_clock_init (GstNetClientInternalClock * self)
   self->last_remote_poll_interval = GST_CLOCK_TIME_NONE;
   self->skipped_updates = 0;
   self->last_rtts_missing = MEDIAN_PRE_FILTERING_WINDOW;
-  self->remote_avg_old = 0;
 }
 
 static void
@@ -368,6 +367,11 @@ gst_net_client_internal_clock_observe_times (GstNetClientInternalClock * self,
 
   GST_OBJECT_LOCK (self);
   rtt_limit = self->roundtrip_limit;
+  if (self->toUTC) {
+      // Convert from 1900 NTP to 1970 UTC format
+      remote_1 -= 2208988800ULL * GST_SECOND;
+      remote_2 -= 2208988800ULL * GST_SECOND;
+  }
 
   GST_LOG_OBJECT (self,
       "local1 %" G_GUINT64_FORMAT " remote1 %" G_GUINT64_FORMAT " remote2 %"
@@ -520,20 +524,6 @@ gst_net_client_internal_clock_observe_times (GstNetClientInternalClock * self,
       (GST_CLOCK_DIFF (remote_avg, min_guess) < (GstClockTimeDiff) (max_discont)
       && GST_CLOCK_DIFF (time_before,
           remote_avg) < (GstClockTimeDiff) (max_discont));
-
-  /* Check if new remote_avg is less than before to detect if signal lost
-   * sync due to the remote clock has restarted. Then the new remote time will
-   * be less than the previous time which should not happen if increased in a
-   * monotonic way. Also, only perform this check on a synchronized clock to
-   * avoid startup issues.
-   */
-  if (synched) {
-    if (remote_avg < self->remote_avg_old) {
-      gst_clock_set_synced (GST_CLOCK (self), FALSE);
-    } else {
-      self->remote_avg_old = remote_avg;
-    }
-  }
 
   if (gst_clock_add_observation_unapplied (GST_CLOCK_CAST (self),
           local_avg, remote_avg, &r_squared, &internal_time, &external_time,
@@ -710,7 +700,9 @@ gst_net_client_internal_clock_thread (gpointer data)
               "sending packet, local time = %" GST_TIME_FORMAT,
               GST_TIME_ARGS (packet->transmit_time));
 
-          gst_ntp_packet_send (packet, self->socket, self->servaddr, NULL);
+          if (!gst_ntp_packet_send (packet, self->socket, self->servaddr, NULL)) {
+          GST_INFO_OBJECT (self, "sending packet failed");
+	  }
 
           g_free (packet);
         } else {
@@ -774,6 +766,9 @@ gst_net_client_internal_clock_thread (gpointer data)
               new_local);
 
           g_free (packet);
+
+          self->timeout_expiration =
+                gst_util_get_timestamp () + (gst_clock_is_synced(GST_CLOCK(self)) ? (GST_SECOND * 10) : (GST_SECOND / 4));
         } else if (err != NULL) {
           if (g_error_matches (err, GST_NTP_ERROR, GST_NTP_ERROR_WRONG_VERSION)
               || g_error_matches (err, GST_NTP_ERROR, GST_NTP_ERROR_KOD_DENY)) {
@@ -978,9 +973,6 @@ gst_net_client_internal_clock_stop (GstNetClientInternalClock * self)
   g_object_unref (self->servaddr);
   self->servaddr = NULL;
 
-  g_object_unref (self->socket);
-  self->socket = NULL;
-
   GST_INFO_OBJECT (self, "stopped");
 }
 
@@ -996,7 +988,7 @@ struct _GstNetClientClockPrivate
   gchar *address;
   gint port;
   gint qos_dscp;
-
+  gboolean toUTC;
   GstBus *bus;
 
   gboolean is_ntp;
@@ -1088,6 +1080,12 @@ gst_net_client_clock_class_init (GstNetClientClockClass * klass)
           -1, 63, DEFAULT_QOS_DSCP,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property(gobject_class, PROP_TO_UTC,
+      g_param_spec_boolean("to-utc", "Convert NTP to UTC",
+          "Convert NTP time format to UTC format. Default: false",
+          FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   clock_class->get_internal_time = gst_net_client_clock_get_internal_time;
 }
 
@@ -1105,6 +1103,7 @@ gst_net_client_clock_init (GstNetClientClock * self)
   priv->port = DEFAULT_PORT;
   priv->address = g_strdup (DEFAULT_ADDRESS);
   priv->qos_dscp = DEFAULT_QOS_DSCP;
+  priv->toUTC = FALSE;
 
   priv->roundtrip_limit = DEFAULT_ROUNDTRIP_LIMIT;
   priv->minimum_update_interval = DEFAULT_MINIMUM_UPDATE_INTERVAL;
@@ -1122,7 +1121,7 @@ update_clock_cache (ClockCache * cache)
   GstClockTime roundtrip_limit = 0, minimum_update_interval = 0;
   GList *l, *busses = NULL;
   gint qos_dscp = DEFAULT_QOS_DSCP;
-
+  gboolean toUTC = FALSE;
   GST_OBJECT_LOCK (cache->clock);
   g_list_free_full (GST_NET_CLIENT_INTERNAL_CLOCK (cache->clock)->busses,
       (GDestroyNotify) gst_object_unref);
@@ -1145,6 +1144,7 @@ update_clock_cache (ClockCache * cache)
           MIN (minimum_update_interval, clock->priv->minimum_update_interval);
 
     qos_dscp = MAX (qos_dscp, clock->priv->qos_dscp);
+    toUTC = clock->priv->toUTC;
   }
   GST_NET_CLIENT_INTERNAL_CLOCK (cache->clock)->busses = busses;
   GST_NET_CLIENT_INTERNAL_CLOCK (cache->clock)->roundtrip_limit =
@@ -1152,26 +1152,35 @@ update_clock_cache (ClockCache * cache)
   GST_NET_CLIENT_INTERNAL_CLOCK (cache->clock)->minimum_update_interval =
       minimum_update_interval;
   GST_NET_CLIENT_INTERNAL_CLOCK (cache->clock)->qos_dscp = qos_dscp;
+  GST_NET_CLIENT_INTERNAL_CLOCK(cache->clock)->toUTC = toUTC;
 
   GST_OBJECT_UNLOCK (cache->clock);
 }
 
 static gboolean
-remove_clock_cache (GstClock * clock, GstClockTime time, GstClockID id,
+remove_clock_cache(ClockCache* cache)
+{
+    if (!cache->clocks) {
+        gst_clock_id_unref(cache->remove_id);
+        gst_object_unref(cache->clock);
+        clocks = g_list_remove(clocks, cache);
+        g_free(cache);
+    }
+
+    return TRUE;
+}
+
+static gboolean
+remove_clock_cache_cb (GstClock * clock, GstClockTime time, GstClockID id,
     gpointer user_data)
 {
   ClockCache *cache = user_data;
 
-  G_LOCK (clocks_lock);
-  if (!cache->clocks) {
-    gst_clock_id_unref (cache->remove_id);
-    gst_object_unref (cache->clock);
-    clocks = g_list_remove (clocks, cache);
-    g_free (cache);
-  }
-  G_UNLOCK (clocks_lock);
-
-  return TRUE;
+  G_LOCK(clocks_lock);
+  gboolean result = remove_clock_cache(cache);
+  G_UNLOCK(clocks_lock);
+  
+  return result;
 }
 
 static void
@@ -1195,13 +1204,14 @@ gst_net_client_clock_finalize (GObject * object)
       if (cache->clocks) {
         update_clock_cache (cache);
       } else {
-        GstClock *sysclock = gst_system_clock_obtain ();
+        remove_clock_cache(cache);
+        /*GstClock *sysclock = gst_system_clock_obtain ();
         GstClockTime time = gst_clock_get_time (sysclock) + 60 * GST_SECOND;
 
         cache->remove_id = gst_clock_new_single_shot_id (sysclock, time);
-        gst_clock_id_wait_async (cache->remove_id, remove_clock_cache, cache,
+        gst_clock_id_wait_async (cache->remove_id, remove_clock_cache_cb, cache,
             NULL);
-        gst_object_unref (sysclock);
+        gst_object_unref (sysclock);*/
       }
       break;
     }
@@ -1275,6 +1285,11 @@ gst_net_client_clock_set_property (GObject * object, guint prop_id,
       GST_OBJECT_UNLOCK (self);
       update = TRUE;
       break;
+    case PROP_TO_UTC:
+      GST_OBJECT_LOCK(self);
+      self->priv->toUTC = g_value_get_boolean(value);
+      GST_OBJECT_UNLOCK(self);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1336,6 +1351,11 @@ gst_net_client_clock_get_property (GObject * object, guint prop_id,
       g_value_set_int (value, self->priv->qos_dscp);
       GST_OBJECT_UNLOCK (self);
       break;
+    case PROP_TO_UTC:
+      GST_OBJECT_LOCK(self);
+      g_value_set_boolean(value, self->priv->toUTC);
+      GST_OBJECT_UNLOCK(self);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1360,7 +1380,7 @@ gst_net_client_clock_constructed (GObject * object)
   G_OBJECT_CLASS (gst_net_client_clock_parent_class)->constructed (object);
 
   G_LOCK (clocks_lock);
-  for (l = clocks; l; l = l->next) {
+  /*for (l = clocks; l; l = l->next) {
     ClockCache *tmp = l->data;
     GstNetClientInternalClock *internal_clock =
         GST_NET_CLIENT_INTERNAL_CLOCK (tmp->clock);
@@ -1375,7 +1395,7 @@ gst_net_client_clock_constructed (GObject * object)
       }
       break;
     }
-  }
+  }*/
 
   if (!cache) {
     cache = g_new0 (ClockCache, 1);
@@ -1489,7 +1509,7 @@ gst_ntp_clock_init (GstNtpClock * self)
  */
 GstClock *
 gst_ntp_clock_new (const gchar * name, const gchar * remote_address,
-    gint remote_port, GstClockTime base_time)
+    gint remote_port, GstClockTime base_time, gboolean toUTC)
 {
   GstClock *ret;
 
@@ -1500,7 +1520,7 @@ gst_ntp_clock_new (const gchar * name, const gchar * remote_address,
 
   ret =
       g_object_new (GST_TYPE_NTP_CLOCK, "name", name, "address", remote_address,
-      "port", remote_port, "base-time", base_time, NULL);
+      "port", remote_port, "base-time", base_time, "to-utc", toUTC, NULL);
 
   gst_object_ref_sink (ret);
 

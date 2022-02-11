@@ -199,6 +199,7 @@ SrtOption srt_options[] = {
   {"retransmitalgo", SRTO_RETRANSMITALGO, G_TYPE_INT},
   {NULL}
 };
+/* *INDENT-ON* */
 
 static gint srt_init_refcount = 0;
 
@@ -1639,7 +1640,7 @@ gst_srt_object_send_headers (GstSRTObject * srtobject, SRTSOCKET sock,
 
     if (poll_id > 0 && srt_epoll_wait (poll_id, 0, 0, &wsock,
             &wsocklen, poll_timeout, NULL, 0, NULL, 0) < 0) {
-      continue;
+      break;
     }
 
     GST_TRACE_OBJECT (srtobject->element, "sending header %u %" GST_PTR_FORMAT,
@@ -1869,8 +1870,12 @@ get_stats_for_srtsock (SRTSOCKET srtsock, gboolean is_sender, guint64 * bytes)
           "packets-sent", G_TYPE_INT64, stats.pktSent,
           /* number of lost packets (sender side) */
           "packets-sent-lost", G_TYPE_INT, stats.pktSndLoss,
+          /* number of total lost packets (sender side)*/
+          "packets-sent-total",G_TYPE_INT64,stats.pktSentTotal,
           /* number of retransmitted packets */
           "packets-retransmitted", G_TYPE_INT, stats.pktRetrans,
+          /* number of total retransmitted packets */
+          "packets-retransmitted-total", G_TYPE_INT, stats.pktRetransTotal,
           /* number of received ACK packets */
           "packet-ack-received", G_TYPE_INT, stats.pktRecvACK,
           /* number of received NAK packets */
@@ -1885,16 +1890,23 @@ get_stats_for_srtsock (SRTSOCKET srtsock, gboolean is_sender, guint64 * bytes)
           "bytes-sent-dropped", G_TYPE_UINT64, stats.byteSndDrop,
           /* number of too-late-to-send dropped packets */
           "packets-sent-dropped", G_TYPE_INT, stats.pktSndDrop,
+          "packets-sent-dropped-total",G_TYPE_INT,stats.pktSndDropTotal,
           /* sending rate in Mb/s */
           "send-rate-mbps", G_TYPE_DOUBLE, stats.mbpsSendRate,
           /* busy sending time (i.e., idle time exclusive) */
           "send-duration-us", G_TYPE_UINT64, stats.usSndDuration,
+          "send-buffer-size", G_TYPE_INT, stats.msSndBuf,
           "negotiated-latency-ms", G_TYPE_INT, stats.msSndTsbPdDelay, NULL);
       *bytes += stats.byteSent;
     } else {
       gst_structure_set (s,
-          "packets-received", G_TYPE_INT64, stats.pktRecvTotal,
-          "packets-received-lost", G_TYPE_INT, stats.pktRcvLossTotal,
+          "packets-received", G_TYPE_INT64, stats.pktRecv,
+          "packets-received-total", G_TYPE_INT64, stats.pktRecvTotal,
+          "packets-received-dropped", G_TYPE_INT, stats.pktRcvDrop,
+          "packets-received-lost", G_TYPE_INT, stats.pktRcvDropTotal,
+          "received-buffer-size", G_TYPE_UINT, stats.msRcvBuf,
+          "packets-received-dropped-total",G_TYPE_INT,stats.pktRcvDropTotal,
+          "packets-received-retransmitted", G_TYPE_INT, stats.pktRcvRetrans,
           /* number of sent ACK packets */
           "packet-ack-sent", G_TYPE_INT, stats.pktSentACK,
           /* number of sent NAK packets */

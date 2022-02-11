@@ -1502,7 +1502,7 @@ gst_jitter_buffer_sink_parse_caps (GstRtpJitterBuffer * jitterbuffer,
         else
           hostname = g_strdup (host);
 
-        clock = gst_ntp_clock_new (NULL, hostname, port, 0);
+        clock = gst_ntp_clock_new (NULL, hostname, port, 0, FALSE);
         g_free (hostname);
       }
     } else if (g_str_has_prefix (ts_refclk, "ptp=IEEE1588-2008:")) {

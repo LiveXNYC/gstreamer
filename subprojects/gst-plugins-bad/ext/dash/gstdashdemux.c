@@ -3631,7 +3631,7 @@ gst_dash_demux_poll_ntp_server (GstDashDemuxClockDrift * clock_drift,
     ip_addr =
         g_inet_address_to_string ((GInetAddress
             *) (g_list_first (inet_addrs)->data));
-    clock_drift->ntp_clock = gst_ntp_clock_new ("dashntp", ip_addr, 123, 0);
+    clock_drift->ntp_clock = gst_ntp_clock_new ("dashntp", ip_addr, 123, 0, FALSE);
     g_free (ip_addr);
     g_resolver_free_addresses (inet_addrs);
     if (!clock_drift->ntp_clock) {

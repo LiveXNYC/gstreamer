@@ -290,16 +290,16 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 
 /* The object has to be released */
 - (id) initWithContentNSRect: (NSRect) rect
-		 styleMask: (unsigned int) styleMask
-		   backing: (NSBackingStoreType) bufferingType
-		     defer: (BOOL) flag
-		    screen:(NSScreen *) aScreen
+         styleMask: (unsigned int) styleMask
+           backing: (NSBackingStoreType) bufferingType
+             defer: (BOOL) flag
+            screen:(NSScreen *) aScreen
 {
   self = [super initWithContentRect: rect
-		styleMask: styleMask
-		backing: bufferingType
-		defer: flag
-		screen:aScreen];
+        styleMask: styleMask
+        backing: bufferingType
+        defer: flag
+        screen:aScreen];
 
   GST_DEBUG ("Initializing GstOSXvideoSinkWindow");
 
@@ -307,6 +307,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 
   if (gstview)
     [self setContentView:gstview];
+    self.backgroundColor = [NSColor colorWithCalibratedRed: 0.0 green: 0.0 blue: 0.0 alpha: 1.0];
   [self setTitle:@"GStreamer Video Output"];
 
   return self;
@@ -351,7 +352,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   };
 
   fmt = [[NSOpenGLPixelFormat alloc]
-	  initWithAttributes:attribs];
+      initWithAttributes:attribs];
 
   if (!fmt) {
     GST_WARNING ("Cannot create NSOpenGLPixelFormat");
@@ -366,7 +367,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
    [actualContext update];
 
   /* Black background */
-  glClearColor (0.0, 0.0, 0.0, 0.0);
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   pi_texture = 0;
   data = nil;
@@ -406,10 +407,10 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   }
 
   [actualContext makeCurrentContext];
-
+    float scaleFactor =  [[NSScreen mainScreen] backingScaleFactor];
   bounds = [self bounds];
-  view_width = bounds.size.width;
-  view_height = bounds.size.height;
+  view_width = bounds.size.width * scaleFactor;
+  view_height = bounds.size.height * scaleFactor;
 
   frame_par = (gdouble) width / height;
   view_par = (gdouble) view_width / view_height;
@@ -432,9 +433,11 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
     c_x = 0;
     c_y = (view_height - c_height) / 2;
   }
-
+    
   drawingBounds = NSMakeRect(c_x, c_y, c_width, c_height);
   glViewport (c_x, c_y, (GLint) c_width, (GLint) c_height);
+    GST_DEBUG("TEST_________VIEWPORT________width:%d height:%d",c_width,c_width);
+    
 }
 
 - (void) initTextures {
@@ -445,12 +448,21 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   if (pi_texture) {
     glDeleteTextures (1, (GLuint *)&pi_texture);
   }
-
+    
+  auto size = width * height * sizeof(short);
   if (data) {
-    data = g_realloc (data, width * height * sizeof(short)); // short or 3byte?
+    data = g_realloc (data, size); // short or 3byte?
   } else {
-    data = g_malloc0(width * height * sizeof(short));
+    data = g_malloc0(size);
   }
+  memset(data, 128, size);
+  for(int i = 0; i < size; i += 4)
+  {
+    data[i + 1] = 0;
+    data[i + 3] = 0;
+  }
+
+    
   /* Create textures */
   glGenTextures (1, (GLuint *)&pi_texture);
 
@@ -464,7 +476,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 
   /* Use VRAM texturing */
   glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
-		   GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+           GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
 
   /* Tell the driver not to make a copy of the texture but to use
      our buffer */
@@ -477,16 +489,16 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   /* I have no idea what this exactly does, but it seems to be
      necessary for scaling */
   glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
-		   GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+           GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
-		   GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+           GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   // glPixelStorei (GL_UNPACK_ROW_LENGTH, 0); WHY ??
 
   glTexImage2D (GL_TEXTURE_RECTANGLE_EXT, 0, GL_RGBA,
-		width, height, 0,
-		GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, data);
+        width, height, 0,
+        GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, data);
 
-
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   initDone = 1;
 }
 
@@ -506,8 +518,8 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
      http://developer.apple.com/samplecode/Sample_Code/Graphics_3D/
      TextureRange/MainOpenGLView.m.htm */
   glTexSubImage2D (GL_TEXTURE_RECTANGLE_EXT, 0, 0, 0,
-		   width, height,
-		   GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, data);    //FIXME
+           width, height,
+           GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, data);    //FIXME
 }
 
 - (void) cleanUp {
@@ -542,13 +554,15 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   CGLSetParameter (CGLGetCurrentContext (), kCGLCPSwapInterval, params);
 
   /* Black background */
-  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask (GL_TRUE);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
   if (!initDone) {
     [actualContext flushBuffer];
     return;
   }
-
   /* Draw */
   glBindTexture (GL_TEXTURE_RECTANGLE_EXT, pi_texture); // FIXME
   [self drawQuad];
@@ -557,15 +571,19 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 }
 
 - (void) displayTexture {
-  if ([self lockFocusIfCanDraw]) {
+    @try{
+      //if ([self lockFocusIfCanDraw]) {
 
-    [self drawRect:[self bounds]];
-    [self reloadTexture];
-
-    [self unlockFocus];
-
-  }
-
+        [self drawRect:[self bounds]];
+        [self reloadTexture];
+      //}
+    }
+    @catch(NSException* ex){
+        
+    }
+    @finally{
+        //[self unlockFocus];
+    }
 }
 
 - (char *) getTextureBuffer {
@@ -593,7 +611,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
     };
 
     fmt = [[NSOpenGLPixelFormat alloc]
-	    initWithAttributes:attribs];
+        initWithAttributes:attribs];
 
     if (!fmt) {
       GST_WARNING ("Cannot create NSOpenGLPixelFormat");
@@ -602,7 +620,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 
     /* Create the new OpenGL context */
     fullScreenContext = [[NSOpenGLContext alloc]
-			  initWithFormat: fmt shareContext:nil];
+              initWithFormat: fmt shareContext:nil];
     if (!fullScreenContext) {
       GST_WARNING ("Failed to create new NSOpenGLContext");
       return;
@@ -670,36 +688,36 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 #endif
 
 - (void) haveSuperviewReal:(NSMutableArray *)closure {
-	BOOL haveSuperview = [self superview] != nil;
-	[closure addObject:[NSNumber numberWithBool:haveSuperview]];
+    BOOL haveSuperview = [self superview] != nil;
+    [closure addObject:[NSNumber numberWithBool:haveSuperview]];
 }
 
 - (BOOL) haveSuperview {
-	NSMutableArray *closure = [NSMutableArray arrayWithCapacity:1];
-	[self performSelector:@selector(haveSuperviewReal:)
-		onThread:mainThread
-		withObject:(id)closure waitUntilDone:YES];
+    NSMutableArray *closure = [NSMutableArray arrayWithCapacity:1];
+    [self performSelector:@selector(haveSuperviewReal:)
+        onThread:mainThread
+        withObject:(id)closure waitUntilDone:YES];
 
-	return [[closure objectAtIndex:0] boolValue];
+    return [[closure objectAtIndex:0] boolValue];
 }
 
 - (void) addToSuperviewReal:(NSView *)superview {
-	NSRect bounds;
-	[superview addSubview:self];
-	bounds = [superview bounds];
-	[self setFrame:bounds];
-	[self setAutoresizingMask:NSViewWidthSizable|NSViewHeightSizable];
+    NSRect bounds;
+    [superview addSubview:self];
+    bounds = [superview bounds];
+    [self setFrame:bounds];
+    [self setAutoresizingMask:NSViewWidthSizable|NSViewHeightSizable];
 }
 
 - (void) addToSuperview: (NSView *)superview {
-	[self performSelector:@selector(addToSuperviewReal:)
-		onThread:mainThread
-		withObject:superview waitUntilDone:YES];
+    [self performSelector:@selector(addToSuperviewReal:)
+        onThread:mainThread
+        withObject:superview waitUntilDone:YES];
 }
 
 - (void) removeFromSuperview: (id)unused
 {
-	[self removeFromSuperview];
+    [self removeFromSuperview];
 }
 
 - (void) dealloc {
@@ -769,7 +787,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
 
   y = (1 - ((gdouble) y) / [self bounds].size.height) * [self bounds].size.height;
 
-  gst_navigation_send_mouse_event (navigation, event_name, button, x, y);
+  //gst_navigation_send_mouse_event (navigation, event_name, button, x, y);
 }
 
 - (void)sendKeyEvent:(NSEvent *)event : (const char *)event_name
@@ -777,7 +795,7 @@ const gchar* gst_keycode_to_keyname(gint16 keycode)
   if (!navigation)
     return;
 
-  gst_navigation_send_key_event(navigation, event_name, gst_keycode_to_keyname([event keyCode]));
+  //gst_navigation_send_key_event(navigation, event_name, gst_keycode_to_keyname([event keyCode]));
 }
 
 - (void)sendModifierKeyEvent:(NSEvent *)event

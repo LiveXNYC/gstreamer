@@ -392,8 +392,8 @@ gst_osx_video_sink_change_state (GstElement * element,
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       /* Creating our window and our image */
-      GST_VIDEO_SINK_WIDTH (osxvideosink) = 320;
-      GST_VIDEO_SINK_HEIGHT (osxvideosink) = 240;
+      GST_VIDEO_SINK_WIDTH (osxvideosink) = 1280;
+      GST_VIDEO_SINK_HEIGHT (osxvideosink) = 720;
       if (!gst_osx_video_sink_osxwindow_create (osxvideosink,
           GST_VIDEO_SINK_WIDTH (osxvideosink),
           GST_VIDEO_SINK_HEIGHT (osxvideosink))) {

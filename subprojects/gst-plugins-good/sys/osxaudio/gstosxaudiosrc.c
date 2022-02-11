@@ -339,6 +339,10 @@ gst_osx_audio_src_io_proc (GstOsxAudioRingBuffer * buf,
   gint remaining;
   UInt32 n;
   gint offset = 0;
+    
+    if (buf == NULL || buf->core_audio == NULL || buf->core_audio->recBufferList == NULL) {
+        return 0;
+    }
 
   /* Previous invoke of AudioUnitRender changed mDataByteSize into
    * number of bytes actually read. Reset the members. */

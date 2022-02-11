@@ -160,6 +160,29 @@ _audio_device_has_output (AudioDeviceID device_id)
   return TRUE;
 }
 
+static inline gboolean
+_audio_device_has_input (AudioDeviceID device_id)
+{
+  OSStatus status = noErr;
+  UInt32 propertySize;
+
+  AudioObjectPropertyAddress streamsAddress = {
+    kAudioDevicePropertyStreams,
+    kAudioObjectPropertyScopeInput,
+    kAudioObjectPropertyElementMaster
+  };
+
+  status = AudioObjectGetPropertyDataSize (device_id,
+      &streamsAddress, 0, NULL, &propertySize);
+  if (status != noErr) {
+    return FALSE;
+  }
+  if (propertySize == 0) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
 static inline AudioDeviceID *
 _audio_system_get_devices (gint * ndevices)
 {
@@ -220,24 +243,32 @@ gst_osx_audio_device_provider_probe (GstDeviceProvider * provider)
     GstOsxAudioDeviceType type = GST_OSX_AUDIO_DEVICE_TYPE_INVALID;
 
     if ((device_name = _audio_device_get_name (osx_devices[i], FALSE))) {
-      if (!_audio_device_has_output (osx_devices[i])) {
+      if (_audio_device_has_input (osx_devices[i])) {
         GST_DEBUG ("Input Device ID: %u Name: %s",
             (unsigned) osx_devices[i], device_name);
         type = GST_OSX_AUDIO_DEVICE_TYPE_SOURCE;
-
-      } else {
+          device =
+              gst_osx_audio_device_provider_probe_device (self, osx_devices[i],
+              device_name, type);
+          if (device) {
+            gst_object_ref_sink (device);
+            devices = g_list_prepend (devices, device);
+          }
+      }
+      if(_audio_device_has_output (osx_devices[i])) {
         GST_DEBUG ("Output Device ID: %u Name: %s",
             (unsigned) osx_devices[i], device_name);
         type = GST_OSX_AUDIO_DEVICE_TYPE_SINK;
+          device =
+              gst_osx_audio_device_provider_probe_device (self, osx_devices[i],
+              device_name, type);
+          if (device) {
+            gst_object_ref_sink (device);
+            devices = g_list_prepend (devices, device);
+          }
       }
 
-      device =
-          gst_osx_audio_device_provider_probe_device (self, osx_devices[i],
-          device_name, type);
-      if (device) {
-        gst_object_ref_sink (device);
-        devices = g_list_prepend (devices, device);
-      }
+
 
       g_free (device_name);
     }

@@ -721,11 +721,11 @@ gst_core_audio_probe_caps (GstCoreAudio * core_audio, GstCaps * in_caps)
        * and the rest will be dropped. */
       if (channels == 1) {
         /* If have mono, then also offer stereo since CoreAudio downmixes to it */
-        GstStructure *stereo = gst_structure_copy (out_s);
+        /*GstStructure *stereo = gst_structure_copy (out_s);
         gst_structure_remove_field (out_s, "channel-mask");
         gst_structure_set (stereo, "channels", G_TYPE_INT, 2,
             "channel-mask", GST_TYPE_BITMASK, STEREO_CHANNEL_MASK, NULL);
-        gst_caps_append_structure (caps, stereo);
+        gst_caps_append_structure (caps, stereo);*/
         gst_caps_append_structure (caps, out_s);
       } else if (channels == 2 && (channel_mask == 0
               || channel_mask == STEREO_CHANNEL_MASK)) {

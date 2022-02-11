@@ -30,7 +30,7 @@ if cmdres.returncode() != 0
 endif
 
 # Install gst-indent pre-commit hook
-run_command(python3, '-c', 'import shutil; shutil.copy("scripts/git-hooks/multi-pre-commit.hook", ".git/hooks/pre-commit")', check: false)
+# run_command(python3, '-c', 'import shutil; shutil.copy("scripts/git-hooks/multi-pre-commit.hook", ".git/hooks/pre-commit")', check: false)
 
 # Ensure that the user does not have Strawberry Perl in PATH, since it ships
 # with a pkg-config.bat and broken pkgconfig files for libffi and zlib. Will

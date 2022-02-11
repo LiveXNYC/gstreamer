@@ -134,6 +134,11 @@ struct _GstH264Parse
   gint idr_pos, sei_pos;
   gint pic_timing_sei_pos;
   gint pic_timing_sei_size;
+  gint force_pic_timing_sei_pos;
+  guint pic_struct_present_flag_position;
+  guint sps_nals_pic_struct_present_flag_position;
+  guint sps_nals_timing_info_present_flag;
+  guint vui_parameters_present_flag_position;
   gboolean update_caps;
   GstAdapter *frame_out;
   gboolean keyframe;
@@ -141,6 +146,10 @@ struct _GstH264Parse
   gboolean bidirectional;
   gboolean header;
   gboolean frame_start;
+  guint8 cpb_removal_delay_length_minus1;
+  guint8 dpb_output_delay_length_minus1;
+  guint8 time_offset_length;
+  guint64 total_key_frames;
   /* AU state */
   gboolean picture_start;
 
