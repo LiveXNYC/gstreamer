@@ -35,6 +35,7 @@
 #endif
 #ifdef HAVE_VIDEOTOOLBOX
 #include "vtdec.h"
+#include "vtdec265.h"
 #endif
 #ifndef HAVE_IOS
 #define AV_RANK GST_RANK_SECONDARY
@@ -45,6 +46,7 @@
 
 #ifdef HAVE_VIDEOTOOLBOX
 void gst_vtenc_register_elements (GstPlugin * plugin);
+void gst_vtenc_265_register_elements (GstPlugin * plugin);
 #endif
 
 #ifndef HAVE_IOS
@@ -91,7 +93,9 @@ plugin_init (GstPlugin * plugin)
   /* Check if the framework actually exists at runtime */
   if (&VTCompressionSessionCreate != NULL) {
     gst_vtdec_register_elements (plugin);
+    gst_vtdec_265_register_elements (plugin);
     gst_vtenc_register_elements (plugin);
+    gst_vtenc_265_register_elements (plugin);
   }
 #endif
 
