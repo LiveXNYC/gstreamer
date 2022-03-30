@@ -190,29 +190,6 @@ _audio_device_has_input (AudioDeviceID device_id)
   return TRUE;
 }
 
-static inline gboolean
-_audio_device_has_input (AudioDeviceID device_id)
-{
-  OSStatus status = noErr;
-  UInt32 propertySize;
-
-  AudioObjectPropertyAddress streamsAddress = {
-    kAudioDevicePropertyStreams,
-    kAudioObjectPropertyScopeInput,
-    kAudioObjectPropertyElementMaster
-  };
-
-  status = AudioObjectGetPropertyDataSize (device_id,
-      &streamsAddress, 0, NULL, &propertySize);
-  if (status != noErr) {
-    return FALSE;
-  }
-  if (propertySize == 0) {
-    return FALSE;
-  }
-
-  return TRUE;
-}
 static inline AudioDeviceID *
 _audio_system_get_devices (gint * ndevices)
 {
