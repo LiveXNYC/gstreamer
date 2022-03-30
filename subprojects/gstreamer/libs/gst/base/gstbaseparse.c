@@ -1782,7 +1782,7 @@ gst_base_parse_convert_default (GstBaseParse * parse,
   if (!parse->priv->framecount)
     goto no_framecount;
 
-  duration = parse->priv->acc_duration / GST_MSECOND;
+  duration = parse->priv->acc_duration;
   bytes = parse->priv->bytecount;
 
   if (G_UNLIKELY (!duration || !bytes))
@@ -1793,9 +1793,9 @@ gst_base_parse_convert_default (GstBaseParse * parse,
       /* BYTES -> TIME conversion */
       GST_DEBUG_OBJECT (parse, "converting bytes -> time");
       *dest_value = gst_util_uint64_scale (src_value, duration, bytes);
-      *dest_value *= GST_MSECOND;
-      GST_DEBUG_OBJECT (parse, "conversion result: %" G_GINT64_FORMAT " ms",
-          *dest_value / GST_MSECOND);
+      GST_DEBUG_OBJECT (parse,
+          "converted %" G_GINT64_FORMAT " bytes to %" GST_TIME_FORMAT,
+          src_value, GST_TIME_ARGS (*dest_value));
       ret = TRUE;
     } else {
       GST_DEBUG_OBJECT (parse, "converting bytes -> other not implemented");
@@ -1803,11 +1803,10 @@ gst_base_parse_convert_default (GstBaseParse * parse,
   } else if (src_format == GST_FORMAT_TIME) {
     if (dest_format == GST_FORMAT_BYTES) {
       GST_DEBUG_OBJECT (parse, "converting time -> bytes");
-      *dest_value = gst_util_uint64_scale (src_value / GST_MSECOND, bytes,
-          duration);
+      *dest_value = gst_util_uint64_scale (src_value, bytes, duration);
       GST_DEBUG_OBJECT (parse,
-          "time %" G_GINT64_FORMAT " ms in bytes = %" G_GINT64_FORMAT,
-          src_value / GST_MSECOND, *dest_value);
+          "converted %" GST_TIME_FORMAT " to %" G_GINT64_FORMAT " bytes",
+          GST_TIME_ARGS (src_value), *dest_value);
       ret = TRUE;
     } else {
       GST_DEBUG_OBJECT (parse, "converting time -> other not implemented");

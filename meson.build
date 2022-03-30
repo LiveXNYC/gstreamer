@@ -1,5 +1,5 @@
 project('gstreamer-full', 'c',
-  version : '1.20.0.1',
+  version : '1.20.1.1',
   meson_version : '>= 0.59',
   default_options : ['buildtype=debugoptimized',
                      # Needed due to https://github.com/mesonbuild/meson/issues/1889,
@@ -16,17 +16,17 @@ fs = import('fs')
 gnome = import('gnome')
 pkgconfig = import('pkgconfig')
 python3 = import('python').find_installation()
-# Ensure that we're not being run from inside the gst-uninstalled env
+# Ensure that we're not being run from inside the development environment
 # because that will confuse meson, and it might find the already-built
 # gstreamer. It's fine if people run `ninja` as long as it doesn't run
 # reconfigure because ninja doesn't care about the env.
-ensure_not_uninstalled = '''
+ensure_not_devenv = '''
 import os
 assert('GST_ENV' not in os.environ)
 '''
-cmdres = run_command(python3, '-c', ensure_not_uninstalled, check: false)
+cmdres = run_command(python3, '-c', ensure_not_devenv, check: false)
 if cmdres.returncode() != 0
-  error('Do not run `ninja` or `meson` for gst-build inside the uninstalled environment, you will run into problems')
+  error('Do not run `ninja reconfigure` or `meson` for gst-build inside the development environment, you will run into problems')
 endif
 
 # Install gst-indent pre-commit hook
@@ -380,9 +380,9 @@ endif
 message('Building subprojects: ' + ', '.join(subprojects_names))
 
 setenv = find_program('gst-env.py')
-devenv_cmd = [setenv, '--builddir=@0@'.format(meson.project_build_root()),
-              '--gstbuilddir=@0@'.format(meson.current_build_dir()),
-              '--srcdir=@0@'.format(meson.project_source_root())]
+
+devenv_cmd = [setenv, '--builddir=@0@'.format(meson.build_root()),
+              '--srcdir=@0@'.format(meson.source_root())]
 
 subdir('tests')
 if meson.can_run_host_binaries() and build_machine.system() == 'linux' and host_machine.system() == 'windows'
@@ -395,7 +395,6 @@ if meson.can_run_host_binaries() and build_machine.system() == 'linux' and host_
   endif
 endif
 
-run_target('uninstalled', command : devenv_cmd)
 run_target('devenv', command : devenv_cmd)
 
 if orc_subproject.found() and orc_update_targets.length() > 0

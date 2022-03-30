@@ -205,7 +205,7 @@ All the selected features will be registered into a dedicated `NULL` plugin name
 
 This will cause the features/plugins that are not registered to not be included in the final gstreamer-full library.
 
-This is an experimental feature, backward uncompatible changes could still be
+This is an experimental feature, backward incompatible changes could still be
 made in the future.
 
 # Development environment
@@ -233,6 +233,9 @@ An external script can be run in development environment with:
 ```
 ./gst-env.py external_script.sh
 ```
+
+For more extensive documentation about the development environment go to [the
+documentation](https://gstreamer.freedesktop.org/documentation/installing/building-from-source-using-meson.html).
 
 ## Custom subprojects
 
@@ -423,13 +426,13 @@ git clone https://github.com/mesonbuild/meson.git
 ```
 BUILDDIR=$PWD/winebuild/
 export WINEPREFIX=$BUILDDIR/wine-prefix/ && mkdir -p $WINEPREFIX
-# Setting the prefix is mandatory as it is used to setup symlinks during uninstalled development
+# Setting the prefix is mandatory as it is used to setup symlinks within the development environment
 meson/meson.py $BUILDDIR --cross-file meson/cross/linux-mingw-w64-64bit.txt -Dgst-plugins-bad:vulkan=disabled -Dorc:gtk_doc=disabled --prefix=$BUILDDIR/wininstall/ -Djson-glib:gtk_doc=disabled
 meson/meson.py install -C $BUILDDIR/
 ```
 
 > __NOTE__: You should use `meson install -C $BUILDDIR`  each time you make a change
-> instead of the usual `ninja -C build` as the environment is not uninstalled.
+> instead of the usual `ninja -C build` as this is not in the development environment.
 
 #### The development environment
 
