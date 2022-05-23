@@ -50,6 +50,7 @@ gst_core_audio_init (GstCoreAudio * core_audio)
   core_audio->audiounit = NULL;
   core_audio->cached_caps = NULL;
   core_audio->cached_caps_valid = FALSE;
+  core_audio->recBufferList = NULL;
 #ifndef HAVE_IOS
   core_audio->hog_pid = -1;
   core_audio->disabled_mixing = FALSE;
