@@ -768,7 +768,7 @@ gst_net_client_internal_clock_thread (gpointer data)
           g_free (packet);
 
           self->timeout_expiration =
-                gst_util_get_timestamp () + (gst_clock_is_synced(GST_CLOCK(self)) ? (GST_SECOND * 10) : (GST_SECOND / 4));
+                gst_util_get_timestamp () + (gst_clock_is_synced(GST_CLOCK(self)) ? (GST_SECOND * 10) : (GST_SECOND / 2));
         } else if (err != NULL) {
           if (g_error_matches (err, GST_NTP_ERROR, GST_NTP_ERROR_WRONG_VERSION)
               || g_error_matches (err, GST_NTP_ERROR, GST_NTP_ERROR_KOD_DENY)) {
